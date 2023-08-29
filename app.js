@@ -19,16 +19,17 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 //import * as lights from './lights.js';
 //import * as constructors from './constructors.js';
 
-
 const sceneProperties = {};
 
 const currentURL = window.location.href;
 const urlObj = new URL(currentURL);
 const params = new URLSearchParams(urlObj.search);
 if ([...params.keys()].length > 0) {
+    sceneProperties.stageDefault = params.get('stageDefault');
     sceneProperties.stageAreaLightColor = new THREE.Color(parseInt(params.get('stageAreaLightColor'), 16));
     sceneProperties.mainAreaLightColor = new THREE.Color(parseInt(params.get('mainAreaLightColor'), 16));
 } else {
+    sceneProperties.stageDefault = "Oval_Speaker";
     sceneProperties.stageAreaLightColor = new THREE.Color(parseInt("1fd122", 16));
     sceneProperties.mainAreaLightColor = new THREE.Color(parseInt("ffffff", 16));
 }
@@ -45,19 +46,18 @@ function intToRgb(intColor) {
 //
 // Globals
 //
-let container, stats, clock, axesHelper;
+let container, model, stats, clock, axesHelper;
 let scene, camera, renderer, controlsPointerLock, controlsOrbit;
-let composer, renderPass, saoPass;
-let platform = new THREE.Group();
-let nativeObjects = [];
 let gltfModels = [];
+let gltfModels_Stage = [];
+let gltfModelLoads_Stage = ["Oval_Panelist_Center", "Oval_Panelist_Front", "Oval_Speaker", "Oval_Stage"];
+
 
 const color_audienceTablecloth = 0x46418C;
 const color_AudienceChair = 0x46415D;
 const color_AudienceChairFrame = 0x000000;
 
 const gltfLoader = new GLTFLoader();
-
 
 let maxWalkHeight = 8 * 0.3048; // feet x m/foot
 let walkHight = 5.5 * 0.3048; // feet x m/foot
@@ -116,46 +116,59 @@ function saveSettingsButton() {
 
 function updateURLWithProperties(properties) {
     
-    console.log(typeof sceneProperties.mainAreaLightColor);
-    console.log(sceneProperties.mainAreaLightColor);
-    sceneProperties.stageAreaLightColor = sceneProperties.stageAreaLightColor.getHexString();
-    sceneProperties.mainAreaLightColor = sceneProperties.mainAreaLightColor.getHexString();
+    if (typeof sceneProperties.stageAreaLightColor === 'object') {
+        sceneProperties.stageAreaLightColor = sceneProperties.stageAreaLightColor.getHexString();
+    }
+    if (typeof sceneProperties.mainAreaLightColor === 'object') {
+        sceneProperties.mainAreaLightColor = sceneProperties.mainAreaLightColor.getHexString();
+    }
+    
 
     const params = new URLSearchParams();
   
     for (const [key, value] of Object.entries(properties)) {
       params.set(key, value);
-      console.log(value);
     }
     //params.set('mainAreaLightColor', hexString);
     window.history.replaceState({}, '', `${window.location.pathname}?${params}`);
   }
 
-function loadGLTFModel(path, castShadow, receiveShadow) {
+function loadGLTFModel(path, fileName, fileType, castShadow, receiveShadow) {
     const loader = new GLTFLoader();
-    loader.load(path, (gltf) => {
+    loader.load(path + fileName + fileType, (gltf) => {
         let model = gltf.scene;
-        // Traverse the model and enable shadows for each mesh
-        model.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = castShadow;
-                // if (child.material.name.includes("Paint - White")) {
-                //     child.material = materials.materialWhitePaint;
-                // }
-                // if (child.material.name.includes("Light - Emissive - Stage Area")) {
-                //     child.material = materials.materialEmissive_stage;
-                // }
-                // if (child.material.name.includes("Light - Emissive - Main Area")) {
-                //     child.material = materials.materialEmissive_main;
-                // }
-                //Light - Emissive
-                //child.material = materials.defaultMaterial;
-                child.receiveShadow = receiveShadow;  // Let the plane receive shadows
-                //console.log(child.material.name);
-            }
-        });
+        if (castShadow || receiveShadow) {
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = castShadow;
+                    child.receiveShadow = receiveShadow;
+                }
+            });
+        }
+        model.name = fileName;
         scene.add(model);
         gltfModels.push(model);
+    });
+}
+
+function loadGLTFModel_Stage(path, fileName, castShadow, receiveShadow) {
+    const loader = new GLTFLoader();
+    loader.load(path + fileName + ".gltf", (gltf) => {
+        let model = gltf.scene;
+        if (castShadow || receiveShadow) {
+            model.traverse((child) => {
+                if (child.isMesh) {
+                    child.castShadow = castShadow;
+                    child.receiveShadow = receiveShadow;
+                }
+            });
+        }
+        model.name = fileName;
+        scene.add(model);
+        gltfModels_Stage.push(model);
+        if (fileName != sceneProperties.stageDefault) {
+            model.visible = false;
+        }
     });
 }
 
@@ -208,14 +221,30 @@ function init() {
     //lights.addSceneLights(scene);
 
     // Global
-    const intensityAdjustment = 1;
-    const ambientIntensity = 0;
+    const intensityAdjustment = 2;
+    const ambientIntensity = .1;
     let positionsArray = [];
     let lightHeight;
 
     // Ambient light
     const ambientLight = new THREE.AmbientLight(0xffffff, ambientIntensity * intensityAdjustment);
     scene.add(ambientLight);
+
+    // Create directional light
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(50, 50, 50);
+    directionalLight.target.position.set(0, 0, 0); // Focuses on (0,0,0)
+    scene.add(directionalLight);
+    scene.add(directionalLight.target); // Don't forget to add the target to the scene
+
+    // Enable shadows for this light source
+    //directionalLight.castShadow = true;
+
+    // Setup shadow properties for better quality or performance
+    // directionalLight.shadow.mapSize.width = 512;
+    // directionalLight.shadow.mapSize.height = 512;
+    // directionalLight.shadow.camera.near = 0.5;
+    // directionalLight.shadow.camera.far = 500;
 
     //
     // Stage lights
@@ -318,21 +347,36 @@ function init() {
 
 
     //
-    // GLTFs
+    // GLTF Models
     //
     // loadGLTFModel('./models/floors.gltf', true, true);
     // loadGLTFModel('./models/walls.gltf', true, true);
-    loadGLTFModel('./models/mockup.gltf', true, true);
+    //loadGLTFModel('./models/mockup.gltf', true, true);
+    loadGLTFModel(`./models/`, "floors", ".glb", false, true);
+    loadGLTFModel(`./models/`, "walls", ".glb", true, true);
+    loadGLTFModel(`./models/`, "soffits", ".glb", false, false);
+    //loadGLTFModel(`./models/`, "ceilings", ".glb", false, false);
+    //loadGLTFModel(`./models/`, "audience_seating", ".glb", true, false);
+    //loadGLTFModel(`./models/`, "exterior", ".glb", true, true);
+    
+
+
+    gltfModelLoads_Stage.forEach((fileName) => {
+        //loadGLTFModel_Stage(`./models/stage/`, `${fileName}.gltf`, true, true);
+        loadGLTFModel_Stage(`./models/`, fileName, true, true);
+    });
+      
+
 
     let track_lights;
     gltfLoader.load('./models/track_lights.gltf', (gltf) => {
         track_lights = gltf.scene;
         track_lights.traverse((child) => {
             if (child.isMesh) {
-                if (child.material.name.includes("Building - Ceiling - Light - Emissive - Main Area")) {
+                if (child.material.name.includes("Emissive - Main Area")) {
                     child.material = materialEmissive_main;
                 }
-                if (child.material.name.includes("Building - Ceiling - Light - Emissive - Stage Area")) {
+                if (child.material.name.includes("Emissive - Stage Area")) {
                     child.material = materialEmissive_stage;
                 }
             }
@@ -340,44 +384,70 @@ function init() {
         scene.add(track_lights);
     });
 
-    // let audience_seating;
-    // gltfLoader.load('./models/audience_seating.gltf', (gltf) => {
-    //     audience_seating = gltf.scene;
-    //     audience_seating.traverse((child) => {
-    //         if (child.isMesh) {
-    //             //child.castShadow = true;
-    //             //child.receiveShadow = true;  // Let the plane receive shadows
-    //             // if (child.material.name.includes("Building - Furniture - Audience Tablecloth")) {
-    //             //     child.material = materials.material_audienceTablecloth;
-    //             // }
-    //             // if (child.material.name.includes("Building - Furniture - Audience Chair - Fabric")) {
-    //             //     child.material = materials.material_audienceChair;
-    //             // }
-    //             // if (child.material.name.includes("Building - Furniture - Audience Chair - Fabric")) {
-    //             //     child.material = materials.material_audienceChair;
-    //             // };
-                
-    //             // if (child.material.name.includes("Building - Furniture - Audience Chair - Frame")) {
-    //             //     child.material = materials.material_audienceChairFrame;
-    //             // }
-    //         }
-    //     });
-    //     scene.add(audience_seating);
-    // });
+    let exteriorModel;
+    gltfLoader.load('./models/exterior.glb', (gltf) => {
+        exteriorModel = gltf.scene;
+        scene.add(exteriorModel);
+    });
 
-    // let test;
-    // gltfLoader.load('./models/test.gltf', (gltf) => {
-    //     test = gltf.scene;
-    //     test.traverse((child) => {
-    //         console.log(child);
-    //     });
-    //     scene.add(test);
-    // });
+    let ceilingModel;
+    gltfLoader.load('./models/ceilings.glb', (gltf) => {
+        ceilingModel = gltf.scene;
+        scene.add(ceilingModel);
+    });
 
-    //
-    // Geometry
-    //
-    //const modelGroup = new THREE.Group();
+    let seatingModel;
+    gltfLoader.load('./models/seating.glb', (gltf) => {
+        seatingModel = gltf.scene;
+        scene.add(seatingModel);
+    });
+
+    let maxWalkHeight = 0.5 * 0.3048; // feet x m/foot
+
+    // Load texture
+    const textureLoader = new THREE.TextureLoader();
+    const mainScreentexture = textureLoader.load('./mainSreen_default.png');  // Replace with the path to your PNG file
+    const sideScreentexture = textureLoader.load('./sideSreen_default.png');  // Replace with the path to your PNG file
+
+    // Create a plane geometry and material
+    // 19.4056 m
+    let pw = 24.9809;
+    let ph = 4.4958;
+    const mainScreenGeometry = new THREE.PlaneGeometry(pw, ph);  // Width is 4 (along Y-axis), Height is 3 (along Z-axis)
+
+    const mainScreenMaterial = new THREE.MeshBasicMaterial({
+        map: mainScreentexture,
+        transparent: true, // Enable transparency
+        //side: THREE.DoubleSide // Optionally, render both sides of the plane
+      });
+    
+
+    const mainScreen = new THREE.Mesh(mainScreenGeometry, mainScreenMaterial);
+    mainScreen.rotation.y = Math.PI / 2;  // Rotate 90 degrees around the Y-axis
+    mainScreen.position.y = ph / 2 + 0.1524;
+    mainScreen.position.z = (-pw / 2) + 13.9065;
+    mainScreen.position.x =  -10.4976;
+    
+
+    pw = 19.4056;
+    ph = 4.4958;
+    const sideScreenGeometry = new THREE.PlaneGeometry(pw, ph);  // Width is 4 (along Y-axis), Height is 3 (along Z-axis)
+    const sideScreenMaterial = new THREE.MeshBasicMaterial({
+        map: sideScreentexture,
+        transparent: true, // Enable transparency
+        //side: THREE.DoubleSide // Optionally, render both sides of the plane
+        });
+
+    const sideScreen = new THREE.Mesh(sideScreenGeometry, sideScreenMaterial);
+    //plane.rotation.y = Math.PI / 2;  // Rotate 90 degrees around the Y-axis
+    sideScreen.position.y = ph / 2 + 0.1524;
+    sideScreen.position.x = (pw / 2) + -10.4976;
+    sideScreen.position.z = -11.0617;
+    
+
+    // Add the plane to the scene
+    scene.add(mainScreen, sideScreen);
+
 
     
     // 
@@ -490,6 +560,47 @@ function init() {
     const gui = new GUI();
 
     // Stage
+    const guiModelsFolder = gui.addFolder('Models');
+    const guiModelSettings = {
+        toggleExtgeriorModel: true,
+        toggleCeilingModel: true,
+        toggleSeatingModel: true
+    };
+    // Add toggle control to GUI
+    guiModelsFolder.add(guiModelSettings, 'toggleExtgeriorModel').name('Exterior Visible').onChange(function (value) {
+        if (exteriorModel) {
+            exteriorModel.visible = value;
+        }
+    });
+    guiModelsFolder.add(guiModelSettings, 'toggleCeilingModel').name('Ceiling Visible').onChange(function (value) {
+        if (ceilingModel) {
+            ceilingModel.visible = value;
+        }
+    });
+    guiModelsFolder.add(guiModelSettings, 'toggleSeatingModel').name('Seating Visible').onChange(function (value) {
+        if (seatingModel) {
+            seatingModel.visible = value;
+        }
+    });
+    
+    // Stage
+    const guiStageFolder = gui.addFolder('Stage');
+    const guiStageSettings = {
+        option: sceneProperties.stageDefault
+    };
+    guiStageFolder.add(guiStageSettings, 'option', gltfModelLoads_Stage).name('Stage Options').onChange(function(value) {
+        gltfModels_Stage.forEach((model) => {
+            if (model.name == value) {
+                model.visible = true;
+            } else {
+                model.visible = false;
+            }
+            sceneProperties.stageDefault = value;
+        });
+    });
+      
+
+    // Lights
     const guiLightsFolder = gui.addFolder('Lights');
     const guiLightsSettings = {
         'Stage area color': sceneProperties.stageAreaLightColor,
@@ -557,7 +668,7 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
     renderer.setSize( width, height );
 
-    composer.setSize( width, height );
+    //composer.setSize( width, height );
 }
 
 function animate() {
