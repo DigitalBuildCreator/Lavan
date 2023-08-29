@@ -340,30 +340,30 @@ function init() {
         scene.add(track_lights);
     });
 
-    let audience_seating;
-    gltfLoader.load('./models/audience_seating.gltf', (gltf) => {
-        audience_seating = gltf.scene;
-        audience_seating.traverse((child) => {
-            if (child.isMesh) {
-                //child.castShadow = true;
-                //child.receiveShadow = true;  // Let the plane receive shadows
-                // if (child.material.name.includes("Building - Furniture - Audience Tablecloth")) {
-                //     child.material = materials.material_audienceTablecloth;
-                // }
-                // if (child.material.name.includes("Building - Furniture - Audience Chair - Fabric")) {
-                //     child.material = materials.material_audienceChair;
-                // }
-                // if (child.material.name.includes("Building - Furniture - Audience Chair - Fabric")) {
-                //     child.material = materials.material_audienceChair;
-                // };
+    // let audience_seating;
+    // gltfLoader.load('./models/audience_seating.gltf', (gltf) => {
+    //     audience_seating = gltf.scene;
+    //     audience_seating.traverse((child) => {
+    //         if (child.isMesh) {
+    //             //child.castShadow = true;
+    //             //child.receiveShadow = true;  // Let the plane receive shadows
+    //             // if (child.material.name.includes("Building - Furniture - Audience Tablecloth")) {
+    //             //     child.material = materials.material_audienceTablecloth;
+    //             // }
+    //             // if (child.material.name.includes("Building - Furniture - Audience Chair - Fabric")) {
+    //             //     child.material = materials.material_audienceChair;
+    //             // }
+    //             // if (child.material.name.includes("Building - Furniture - Audience Chair - Fabric")) {
+    //             //     child.material = materials.material_audienceChair;
+    //             // };
                 
-                // if (child.material.name.includes("Building - Furniture - Audience Chair - Frame")) {
-                //     child.material = materials.material_audienceChairFrame;
-                // }
-            }
-        });
-        scene.add(audience_seating);
-    });
+    //             // if (child.material.name.includes("Building - Furniture - Audience Chair - Frame")) {
+    //             //     child.material = materials.material_audienceChairFrame;
+    //             // }
+    //         }
+    //     });
+    //     scene.add(audience_seating);
+    // });
 
     // let test;
     // gltfLoader.load('./models/test.gltf', (gltf) => {
